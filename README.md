@@ -11,7 +11,7 @@ BadSuccessor is a privilege escalation vulnerability in Windows Server 2025 that
 - Affects approximately 91% of environments where non-admin users have the required permissions
 - Currently has no available patch from Microsoft
 
-## Script Features
+## Updated Script Features
 
 The `Get-BadSuccessorOUPermissions.ps1` script provides the following capabilities:
 
