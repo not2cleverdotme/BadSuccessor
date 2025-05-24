@@ -24,7 +24,7 @@ The `Get-BadSuccessorOUPermissions.ps1` script provides the following capabiliti
 
 ## Prerequisites
 
-- Windows PowerShell 5.1 or later
+- Windows PowerShell 5.1 or later, but version 7 seems to be the most stable at the moment.
 - Active Directory PowerShell Module (RSAT Tools)
 - Domain User Rights
 - Read access to Active Directory
