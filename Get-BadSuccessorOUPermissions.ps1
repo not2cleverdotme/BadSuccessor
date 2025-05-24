@@ -12,6 +12,11 @@ function Get-BadSuccessorOUPermissions {
 
         Note: We do not expand group membership and the permissions list used may not be exhaustive. Indirect rights such as WriteDACL on the OU are considered.
 
+        PowerShell Compatibility:
+        - Supports both PowerShell 5.1 and PowerShell 7+
+        - When running on PowerShell 7, automatically handles Windows PowerShell compatibility mode for the Active Directory module
+        - Includes performance optimizations for PowerShell 7
+
     .PARAMETER SimulateAttack
         Switch parameter to enable attack path simulation mode. This will show the exact steps that would be taken without making any actual changes.
         When enabled, the script will demonstrate the potential attack path without executing any modifications.
@@ -59,9 +64,13 @@ function Get-BadSuccessorOUPermissions {
 
     .NOTES
         File Name      : Get-BadSuccessorOUPermissions.ps1
-        Prerequisite   : PowerShell 5.1 or later
+        Prerequisite   : PowerShell 5.1 or PowerShell 7+
                         Active Directory PowerShell Module
+                        Microsoft.PowerShell.Compatibility Module (for PS7)
                         Domain User Rights
+        
+        PowerShell 7 Note: When running on PowerShell 7, you may need to install the WindowsCompatibility module:
+                          Install-Module -Name Microsoft.PowerShell.Compatibility -Force
         
         SECURITY NOTE: This script is intended for security testing and assessment only.
                       Always obtain proper authorization before running security tests.
@@ -69,6 +78,7 @@ function Get-BadSuccessorOUPermissions {
     .LINK
         https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-principals
         https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-identifiers
+        https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.compatibility/
 
     .COMPONENT
         ActiveDirectory
@@ -88,6 +98,14 @@ function Get-BadSuccessorOUPermissions {
         [Parameter()]
         [switch]$Force
     )
+
+    # Check PowerShell version and set compatibility features
+    $script:isPS7 = $PSVersionTable.PSVersion.Major -ge 7
+    Write-Verbose "PowerShell Version: $($PSVersionTable.PSVersion)"
+    Write-Verbose "Running in PowerShell 7 mode: $isPS7"
+
+    # Set error action preference
+    $ErrorActionPreference = 'Stop'
 
     Write-Host "`n[*] Starting BadSuccessor Permission Scanner" -ForegroundColor Cyan
     Write-Verbose "Function started with parameters: SimulateAttack=$SimulateAttack, TargetOU='$TargetOU', Force=$Force"
@@ -183,10 +201,31 @@ function Get-BadSuccessorOUPermissions {
         Write-Verbose "Simulation completed successfully"
     }
 
+    # Import Active Directory module based on PS version
     Write-Host "[*] Checking Active Directory module..." -ForegroundColor Cyan
-    if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
-        Write-Error "Active Directory module is not available. Please install RSAT tools."
-        return
+    
+    if ($isPS7) {
+        try {
+            # For PowerShell 7, try to import the Windows compatibility module if needed
+            if (-not (Get-Module -Name ActiveDirectory -ListAvailable)) {
+                Import-Module -Name Microsoft.PowerShell.Compatibility -ErrorAction SilentlyContinue
+            }
+            Import-Module -Name ActiveDirectory -UseWindowsPowerShell -ErrorAction Stop
+            Write-Verbose "Imported Active Directory module in Windows PowerShell compatibility mode"
+        }
+        catch {
+            Write-Error "Failed to import Active Directory module in PowerShell 7. Error: $_"
+            Write-Host "Note: In PowerShell 7, you may need to install the WindowsCompatibility module:" -ForegroundColor Yellow
+            Write-Host "Install-Module -Name Microsoft.PowerShell.Compatibility -Force" -ForegroundColor Yellow
+            return
+        }
+    }
+    else {
+        if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+            Write-Error "Active Directory module is not available. Please install RSAT tools."
+            return
+        }
+        Import-Module -Name ActiveDirectory
     }
     Write-Host "[+] Active Directory module is available" -ForegroundColor Green
 
@@ -198,7 +237,8 @@ function Get-BadSuccessorOUPermissions {
         Write-Host "    Domain SID: $domainSID" -ForegroundColor Gray
     }
     catch {
-        Write-Error "Failed to connect to domain: $_"
+        $errorMessage = if ($isPS7) { $_.Exception.Message } else { $_.Exception.Message }
+        Write-Error "Failed to connect to domain: $errorMessage"
         return
     }
 
@@ -245,7 +285,16 @@ function Get-BadSuccessorOUPermissions {
     foreach ($ou in $allOUs) {
         $processedOUs++
         $percentComplete = [math]::Round(($processedOUs / $totalOUs) * 100, 1)
-        Write-Progress -Activity "Analyzing OU Permissions" -Status "Processing $($ou.DistinguishedName)" -PercentComplete $percentComplete
+        
+        # PowerShell 7 has improved progress bar performance
+        if ($isPS7) {
+            if ($processedOUs % 10 -eq 0) {  # Update every 10 items for better performance
+                Write-Progress -Activity "Analyzing OU Permissions" -Status "Processing $($ou.DistinguishedName)" -PercentComplete $percentComplete
+            }
+        }
+        else {
+            Write-Progress -Activity "Analyzing OU Permissions" -Status "Processing $($ou.DistinguishedName)" -PercentComplete $percentComplete
+        }
         Write-Verbose "Processing OU ($processedOUs of $totalOUs): $($ou.DistinguishedName)"
 
         # Process ACEs
