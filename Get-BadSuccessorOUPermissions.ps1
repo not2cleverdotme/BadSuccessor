@@ -15,7 +15,6 @@ function Get-BadSuccessorOUPermissions {
         PowerShell Compatibility:
         - Supports both PowerShell 5.1 and PowerShell 7+
         - When running on PowerShell 7, automatically handles Windows PowerShell compatibility mode for the Active Directory module
-        - Includes performance optimizations for PowerShell 7
 
     .PARAMETER SimulateAttack
         Switch parameter to enable attack path simulation mode. This will show the exact steps that would be taken without making any actual changes.
@@ -98,11 +97,6 @@ function Get-BadSuccessorOUPermissions {
         [Parameter()]
         [switch]$Force
     )
-
-    # Check PowerShell version and set compatibility features
-    $script:isPS7 = $PSVersionTable.PSVersion.Major -ge 7
-    Write-Verbose "PowerShell Version: $($PSVersionTable.PSVersion)"
-    Write-Verbose "Running in PowerShell 7 mode: $isPS7"
 
     # Set error action preference
     $ErrorActionPreference = 'Stop'
@@ -201,32 +195,14 @@ function Get-BadSuccessorOUPermissions {
         Write-Verbose "Simulation completed successfully"
     }
 
-    # Import Active Directory module based on PS version
+    # Import Active Directory module
     Write-Host "[*] Checking Active Directory module..." -ForegroundColor Cyan
     
-    if ($isPS7) {
-        try {
-            # For PowerShell 7, try to import the Windows compatibility module if needed
-            if (-not (Get-Module -Name ActiveDirectory -ListAvailable)) {
-                Import-Module -Name Microsoft.PowerShell.Compatibility -ErrorAction SilentlyContinue
-            }
-            Import-Module -Name ActiveDirectory -UseWindowsPowerShell -ErrorAction Stop
-            Write-Verbose "Imported Active Directory module in Windows PowerShell compatibility mode"
-        }
-        catch {
-            Write-Error "Failed to import Active Directory module in PowerShell 7. Error: $_"
-            Write-Host "Note: In PowerShell 7, you may need to install the WindowsCompatibility module:" -ForegroundColor Yellow
-            Write-Host "Install-Module -Name Microsoft.PowerShell.Compatibility -Force" -ForegroundColor Yellow
-            return
-        }
+    if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
+        Write-Error "Active Directory module is not available. Please install RSAT tools."
+        return
     }
-    else {
-        if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
-            Write-Error "Active Directory module is not available. Please install RSAT tools."
-            return
-        }
-        Import-Module -Name ActiveDirectory
-    }
+    Import-Module -Name ActiveDirectory
     Write-Host "[+] Active Directory module is available" -ForegroundColor Green
 
     Write-Host "[*] Connecting to domain..." -ForegroundColor Cyan
@@ -237,8 +213,7 @@ function Get-BadSuccessorOUPermissions {
         Write-Host "    Domain SID: $domainSID" -ForegroundColor Gray
     }
     catch {
-        $errorMessage = if ($isPS7) { $_.Exception.Message } else { $_.Exception.Message }
-        Write-Error "Failed to connect to domain: $errorMessage"
+        Write-Error "Failed to connect to domain: $($_.Exception.Message)"
         return
     }
 
@@ -286,23 +261,15 @@ function Get-BadSuccessorOUPermissions {
         $processedOUs++
         $percentComplete = [math]::Round(($processedOUs / $totalOUs) * 100, 1)
         
-        # PowerShell 7 has improved progress bar performance
-        if ($isPS7) {
-            if ($processedOUs % 10 -eq 0) {  # Update every 10 items for better performance
-                Write-Progress -Activity "Analyzing OU Permissions" -Status "Processing $($ou.DistinguishedName)" -PercentComplete $percentComplete
-            }
-        }
-        else {
+        # Update progress less frequently to improve performance
+        if ($processedOUs % 5 -eq 0) {
             Write-Progress -Activity "Analyzing OU Permissions" -Status "Processing $($ou.DistinguishedName)" -PercentComplete $percentComplete
         }
+        
         Write-Verbose "Processing OU ($processedOUs of $totalOUs): $($ou.DistinguishedName)"
 
         # Process ACEs
-        $aceCount = 0
         foreach ($ace in $ou.ntSecurityDescriptor.Access) {
-            $aceCount++
-            Write-Verbose "  Processing ACE $aceCount of $($ou.ntSecurityDescriptor.Access.Count)"
-            
             if ($ace.AccessControlType -ne "Allow") { 
                 Write-Verbose "  Skipping non-Allow ACE"
                 continue 
@@ -329,42 +296,19 @@ function Get-BadSuccessorOUPermissions {
                 continue 
             }
 
-            try {
-                if (-not $allowedIdentities.ContainsKey($identity)) {
-                    Write-Verbose "  Creating new entry for identity"
-                    $allowedIdentities[$identity] = [System.Collections.Generic.List[string]]::new()
-                }
-                Write-Verbose "  Adding OU to identity's list"
-                $allowedIdentities[$identity].Add($ou.DistinguishedName)
+            if (-not $allowedIdentities.ContainsKey($identity)) {
+                $allowedIdentities[$identity] = [System.Collections.Generic.List[string]]::new()
             }
-            catch {
-                Write-Warning "Failed to process identity '$identity' for OU '$($ou.DistinguishedName)': $_"
-                continue
-            }
+            $allowedIdentities[$identity].Add($ou.DistinguishedName)
         }
 
         # Check the owner
-        Write-Verbose "  Checking OU owner"
         $owner = $ou.ntSecurityDescriptor.Owner
-        Write-Verbose "  Owner: $owner"
-        
         if ($owner -and -not (Test-IsExcludedSID $owner)) {
-            Write-Verbose "  Owner is not excluded, processing"
-            try {
-                if (-not $allowedIdentities.ContainsKey($owner)) {
-                    Write-Verbose "  Creating new entry for owner"
-                    $allowedIdentities[$owner] = [System.Collections.Generic.List[string]]::new()
-                }
-                Write-Verbose "  Adding OU to owner's list"
-                $allowedIdentities[$owner].Add($ou.DistinguishedName)
+            if (-not $allowedIdentities.ContainsKey($owner)) {
+                $allowedIdentities[$owner] = [System.Collections.Generic.List[string]]::new()
             }
-            catch {
-                Write-Warning "Failed to process owner '$owner' for OU '$($ou.DistinguishedName)': $_"
-                continue
-            }
-        }
-        else {
-            Write-Verbose "  Owner is null or excluded, skipping"
+            $allowedIdentities[$owner].Add($ou.DistinguishedName)
         }
     }
     Write-Progress -Activity "Analyzing OU Permissions" -Completed
