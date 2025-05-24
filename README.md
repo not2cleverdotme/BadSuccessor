@@ -1,39 +1,3 @@
-# BadSuccessor
-
-
-
-## Security Considerations
-
-1. These tools are for educational and testing purposes only
-2. Always obtain proper authorization before testing on networks or systems
-3. Some tools require root/administrator privileges
-4. Use SSL/TLS when possible for secure communications
-5. Be cautious with command execution features
-6. Review and understand the code before running
-
-## Requirements
-
-- Python 3.8+
-- See `requirements.txt` for package dependencies
-- Root/Administrator privileges for some tools
-- Network interface with monitor mode support (for WiFi tools)
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Disclaimer
-
-These tools are for educational and testing purposes only. Users are responsible for complying with applicable laws and regulations. The authors are not responsible for any misuse or damage caused by these tools.
-
 # BadSuccessor Permission Scanner
 
 This PowerShell script is designed to help security professionals and system administrators identify potential BadSuccessor attack vectors in their Active Directory environment. The script is based on the BadSuccessor privilege escalation vulnerability discovered in Windows Server 2025, as documented by [Akamai's research team](https://github.com/akamai/BadSuccessor).
@@ -126,8 +90,12 @@ This script is based on the BadSuccessor vulnerability research by Akamai Techno
 
 ## License
 
-This script follows the same licensing terms as the original BadSuccessor project by Akamai Technologies Inc.
+Copyright 2025 Akamai Technologies Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
 ## Disclaimer
 
-This tool is provided for legitimate security testing purposes only. Users are responsible for ensuring they have proper authorization before using this tool in any environment. 
+This tool is provided for legitimate security testing purposes only. Users are responsible for ensuring they have proper authorization before using this tool in any environment. Akamai follows ethical security research principles and makes this software available so that others can assess and improve the security of their own environments. Akamai does not condone malicious use of the software; the user is solely responsible for their conduct. 
